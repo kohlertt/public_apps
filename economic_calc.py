@@ -4,6 +4,7 @@ import numpy as np
 from datetime import datetime, timedelta
 import plotly.graph_objs as go
 from streamlit_plotly_events import plotly_events
+from scipy.optimize import minimize
 
 # Dummy list of assets
 ASSETS = ["Well A", "Well B", "Well C", "Well D"]
@@ -109,7 +110,7 @@ if autofit:
         """,
         unsafe_allow_html=True
     )
-    from scipy.optimize import minimize
+
     def arps_curve(x_dates, b, d_pct):
         q0 = 1000
         days = (pd.to_datetime(pd.Series(x_dates)) - pd.to_datetime(pd.Series(x_dates)[0])).dt.days
@@ -143,8 +144,6 @@ if 'selected_idx' not in st.session_state or st.session_state.get('last_asset') 
     st.session_state.selected_idx = len(asset_df) - 1  # Start at the end (last point)
     st.session_state.last_asset = selected_asset
 
-# Function to generate model curve using session state parameters
-import numpy as np
 
 def generate_model_curve(x_dates, hist=True):
     """
