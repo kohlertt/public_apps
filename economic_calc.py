@@ -9,7 +9,8 @@ from scipy.optimize import minimize
 # Dummy list of assets
 ASSETS = ["Well A", "Well B", "Well C", "Well D"]
 
-def init_app():
+@st.cache_data
+def init_app(run):
     if 'b' not in st.session_state:
         st.session_state['b'] = 1.
     if 'd_pct' not in st.session_state:
@@ -42,7 +43,7 @@ def get_asset_timeseries(asset_name, forecast_yrs):
     df['date'] = df['date'].dt.date
     st.session_state['b'] = b
     st.session_state['d_pct'] = d_annual * 100.
-    return df
+    return df, b, d_annual * 100.
 
 def calculate_forward_economics():
     x = pd.date_range(max(asset_df['date']), periods=int(st.session_state['forecast_yrs'] * 12 + 1), freq='ME').date.tolist()[1:]
@@ -63,13 +64,19 @@ def calculate_forward_economics():
 st.set_page_config(page_title="Asset Line Chart", layout="wide")
 st.title("Economics Calculator")
 
-init_app()
+init_app(1)
 
 # Dropdown menu for asset selection
 selected_asset = st.selectbox("Select Asset", ASSETS)
 
 # Retrieve data for the selected asset
-asset_df = get_asset_timeseries(selected_asset, forecast_yrs=st.session_state['forecast_yrs'])
+asset_df, asset_b, asset_d_pct = get_asset_timeseries(selected_asset, forecast_yrs=st.session_state['forecast_yrs'])
+
+# If the asset has changed, update the session state for b and d_pct
+if 'last_asset' not in st.session_state or st.session_state['last_asset'] != selected_asset:
+    st.session_state['b'] = asset_b
+    st.session_state['d_pct'] = asset_d_pct
+    st.session_state['last_asset'] = selected_asset
 
 # Add sliders for parameters above the chart
 st.markdown('### Parameters')
