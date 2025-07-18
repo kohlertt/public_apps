@@ -273,3 +273,5 @@ with st.expander('Instructions', expanded=False):
 - The trend will be projected for 1 year to estimate NPV.
 - Economic parameters are available in sidebar (use >> to expand).
 ''')
+
+st.session_state
