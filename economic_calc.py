@@ -18,14 +18,14 @@ def init_app():
         st.session_state['forecast_yrs'] = 1.
 
 @st.cache_data
-def get_asset_timeseries(asset_name):
+def get_asset_timeseries(asset_name, forecast_yrs):
     """
     Dummy function to simulate retrieving timeseries data for a given asset.
     Returns a DataFrame with 'date' and 'value' columns.
     The data loosely follows an exponential decline with added noise.
     """
     np.random.seed(hash(asset_name) % 2**32 + 1)  # Seed for reproducibility per asset
-    dates = pd.date_range(datetime.today() - timedelta(days=10*365.25), periods=121 + int(st.session_state['forecast_yrs'] * 12), freq='ME')
+    dates = pd.date_range(datetime.today() - timedelta(days=10*365.25), periods=121 + forecast_yrs * 12, freq='ME')
     # Randomize exponential decline parameters
     q0 = np.random.uniform(100., 1200.)
     d_annual = np.random.uniform(0.5, 0.35)  # 15% to 35% annual decline
@@ -69,7 +69,7 @@ init_app()
 selected_asset = st.selectbox("Select Asset", ASSETS)
 
 # Retrieve data for the selected asset
-asset_df = get_asset_timeseries(selected_asset)
+asset_df = get_asset_timeseries(selected_asset, forecast_yrs=st.session_state['forecast_yrs'])
 
 # Add sliders for parameters above the chart
 st.markdown('### Parameters')
