@@ -14,6 +14,8 @@ def init_app():
         st.session_state['b'] = 1.
     if 'd_pct' not in st.session_state:
         st.session_state['d_pct'] = 15.
+    if 'forecast_yrs' not in st.session_state:
+        st.session_state['forecast_yrs'] = 1.
 
 def get_asset_timeseries(asset_name):
     """
@@ -22,23 +24,25 @@ def get_asset_timeseries(asset_name):
     The data loosely follows an exponential decline with added noise.
     """
     np.random.seed(hash(asset_name) % 2**32)  # Seed for reproducibility per asset
-    dates = pd.date_range(datetime.today() - timedelta(days=10*365.25), periods=120, freq='ME')
+    dates = pd.date_range(datetime.today() - timedelta(days=10*365.25), periods=121 + int(st.session_state['forecast_yrs'] * 12), freq='ME')
     # Randomize exponential decline parameters
     q0 = np.random.uniform(100., 1200.)
     d_annual = np.random.uniform(0.5, 0.35)  # 15% to 35% annual decline
     b = np.random.uniform(0.0001, 0.95)  # 15% to 35% annual decline
     d_monthly = d_annual / 12.
-    months = np.arange(len(dates))
+    months = np.arange(121)
     # base = q0 * np.exp(-d_monthly * months)
     base = q0 / np.power(1. + b * d_monthly * months, 1. / b)
-    noise = np.random.normal(loc=0., scale=base * 0.05, size=len(dates))  # 5% noise
+    noise = np.random.normal(loc=0., scale=base * 0.05, size=121)  # 5% noise
     values = base + noise
-    df = pd.DataFrame({"date": dates, "value": values})
+    df = pd.DataFrame({"date": dates})
+    df["value"] = None
+    df.iloc[:len(values), 1] = values
     df['date'] = df['date'].dt.date
     return df
 
 def calculate_forward_economics():
-    x = pd.date_range(max(asset_df['date']), periods=int(forcast_yrs * 12 + 1), freq='ME').date.tolist()[1:]
+    x = pd.date_range(max(asset_df['date']), periods=int(st.session_state['forecast_yrs'] * 12 + 1), freq='ME').date.tolist()[1:]
     oil = generate_model_curve(x, hist=False)
     df = pd.DataFrame({"date": x, "oil": oil})
     # df['gas'] = 0.
@@ -56,13 +60,13 @@ def calculate_forward_economics():
 st.set_page_config(page_title="Asset Line Chart", layout="wide")
 st.title("Economics Calculator")
 
+init_app()
+
 # Dropdown menu for asset selection
 selected_asset = st.selectbox("Select Asset", ASSETS)
 
 # Retrieve data for the selected asset
 asset_df = get_asset_timeseries(selected_asset)
-
-init_app()
 
 # Add sliders for parameters above the chart
 st.markdown('### Parameters')
@@ -141,7 +145,7 @@ if autofit:
 
 # Initialize or get the selected point index from session state
 if 'selected_idx' not in st.session_state or st.session_state.get('last_asset') != selected_asset:
-    st.session_state.selected_idx = len(asset_df) - 1  # Start at the end (last point)
+    st.session_state.selected_idx = 120  # Start at the end (last point)
     st.session_state.last_asset = selected_asset
 
 
@@ -202,8 +206,8 @@ wi = st.sidebar.number_input('Working Interest (%)', min_value=0.0, max_value=10
 nri = st.sidebar.number_input('Net Rev Interest (%)', min_value=0.0, max_value=100.0, value=80., step=5.)/100
 
 st.sidebar.subheader('Other')
-forcast_yrs = st.sidebar.number_input(
-    'Forecast Life (Yr)', min_value=0.0, value=1.0, step=1.)
+st.session_state['forecast_yrs'] = st.sidebar.number_input(
+    'Forecast Life (Yr)', min_value=0.0, value=st.session_state['forecast_yrs'], step=1.)
 disc_rate = st.sidebar.number_input(
     'Discount Rate (%/Yr)', min_value=0.0, max_value=100.0, value=10.0, step=5., format="%.0f")/100
 ad_val = st.sidebar.number_input(
@@ -258,9 +262,8 @@ selected_points = plotly_events(
 
 # 3. If the user clicked, update the marker to the nearest data point
 if selected_points:
-    print(selected_points)
     click_idx = selected_points[0]['pointIndex']
-    st.session_state.selected_idx = click_idx
+    st.session_state.selected_idx = click_idx if click_idx <= 120 else 120
     st.rerun()  # Force rerun to update the marker position
 
 st.markdown(f'#### NPV{int(disc_rate * 100)} (MM$): {round(calculate_forward_economics()/1e6, 3)}')
@@ -269,6 +272,7 @@ st.markdown(f'#### NPV{int(disc_rate * 100)} (MM$): {round(calculate_forward_eco
 with st.expander('Instructions', expanded=False):
     st.markdown('''
 - Click any data point on the chart to select the Tie-Point.
-- The trend will be projected for 1 year to estimate NPV.
 - Economic parameters are available in sidebar (use >> to expand).
+- Parameter adjustments will not work when autofit is active.
+- NPV calculation includes a well-level economic limit.
 ''')
