@@ -92,7 +92,7 @@ with col1:
     )
 with col2:
     d_pct = st.slider(
-        label="d (%/yr)",
+        label="Di (%/yr)",
         min_value=0.,
         max_value=200.,
         value=st.session_state['d_pct'],
