@@ -17,18 +17,19 @@ def init_app():
     if 'forecast_yrs' not in st.session_state:
         st.session_state['forecast_yrs'] = 1.
 
+@st.cache_data
 def get_asset_timeseries(asset_name):
     """
     Dummy function to simulate retrieving timeseries data for a given asset.
     Returns a DataFrame with 'date' and 'value' columns.
     The data loosely follows an exponential decline with added noise.
     """
-    np.random.seed(hash(asset_name) % 2**32)  # Seed for reproducibility per asset
+    np.random.seed(hash(asset_name) % 2**32 + 1)  # Seed for reproducibility per asset
     dates = pd.date_range(datetime.today() - timedelta(days=10*365.25), periods=121 + int(st.session_state['forecast_yrs'] * 12), freq='ME')
     # Randomize exponential decline parameters
     q0 = np.random.uniform(100., 1200.)
     d_annual = np.random.uniform(0.5, 0.35)  # 15% to 35% annual decline
-    b = np.random.uniform(0.0001, 0.95)  # 15% to 35% annual decline
+    b = np.random.uniform(0.0001, 0.95)  # hyperbolic exponent
     d_monthly = d_annual / 12.
     months = np.arange(121)
     # base = q0 * np.exp(-d_monthly * months)
@@ -39,6 +40,8 @@ def get_asset_timeseries(asset_name):
     df["value"] = None
     df.iloc[:len(values), 1] = values
     df['date'] = df['date'].dt.date
+    st.session_state['b'] = b
+    st.session_state['d_pct'] = d_annual * 100.
     return df
 
 def calculate_forward_economics():
