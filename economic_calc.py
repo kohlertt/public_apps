@@ -9,8 +9,8 @@ from scipy.optimize import minimize
 # Dummy list of assets
 ASSETS = ["Well A", "Well B", "Well C", "Well D"]
 
-@st.cache_data
-def init_app(run):
+
+def init_app():
     if 'b' not in st.session_state:
         st.session_state['b'] = 1.
     if 'd_pct' not in st.session_state:
@@ -64,7 +64,7 @@ def calculate_forward_economics():
 st.set_page_config(page_title="Asset Line Chart", layout="wide")
 st.title("Economics Calculator")
 
-init_app(1)
+init_app()
 
 # Dropdown menu for asset selection
 selected_asset = st.selectbox("Select Asset", ASSETS)
