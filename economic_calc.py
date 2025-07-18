@@ -24,15 +24,15 @@ def get_asset_timeseries(asset_name):
     np.random.seed(hash(asset_name) % 2**32)  # Seed for reproducibility per asset
     dates = pd.date_range(datetime.today() - timedelta(days=10*365.25), periods=120, freq='ME')
     # Randomize exponential decline parameters
-    q0 = np.random.uniform(100, 1200)
+    q0 = np.random.uniform(100., 1200.)
     d_annual = np.random.uniform(0.5, 0.35)  # 15% to 35% annual decline
     b = np.random.uniform(0.0001, 0.95)  # 15% to 35% annual decline
-    d_monthly = d_annual / 12
+    d_monthly = d_annual / 12.
     months = np.arange(len(dates))
     # base = q0 * np.exp(-d_monthly * months)
-    base = q0 / np.power(1 + b * d_monthly * months, 1 / b)
+    base = q0 / np.power(1. + b * d_monthly * months, 1. / b)
     print(base)
-    noise = np.random.normal(loc=0, scale=base * 0.05, size=len(dates))  # 5% noise
+    noise = np.random.normal(loc=0., scale=base * 0.05, size=len(dates))  # 5% noise
     values = base + noise
     df = pd.DataFrame({"date": dates, "value": values})
     df['date'] = df['date'].dt.date
@@ -273,5 +273,3 @@ with st.expander('Instructions', expanded=False):
 - The trend will be projected for 1 year to estimate NPV.
 - Economic parameters are available in sidebar (use >> to expand).
 ''')
-
-st.session_state
