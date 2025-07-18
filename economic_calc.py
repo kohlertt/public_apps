@@ -31,8 +31,9 @@ def get_asset_timeseries(asset_name):
     months = np.arange(len(dates))
     # base = q0 * np.exp(-d_monthly * months)
     base = q0 / np.power(1. + b * d_monthly * months, 1. / b)
-    print(base)
+    base
     noise = np.random.normal(loc=0., scale=base * 0.05, size=len(dates))  # 5% noise
+    noise
     values = base + noise
     df = pd.DataFrame({"date": dates, "value": values})
     df['date'] = df['date'].dt.date
