@@ -2,5 +2,5 @@ streamlit
 streamlit_plotly_events
 pandas
 numpy
-plotly
+plotly=5.19.0
 scipy
