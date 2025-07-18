@@ -22,7 +22,7 @@ def get_asset_timeseries(asset_name):
     The data loosely follows an exponential decline with added noise.
     """
     np.random.seed(hash(asset_name) % 2**32)  # Seed for reproducibility per asset
-    dates = pd.date_range(datetime.today() - timedelta(days=365*10), periods=130, freq='ME')
+    dates = pd.date_range(datetime.today() - timedelta(days=10*365.25), periods=120, freq='ME')
     # Randomize exponential decline parameters
     q0 = np.random.uniform(100, 1200)
     d_annual = np.random.uniform(0.5, 0.35)  # 15% to 35% annual decline
@@ -31,6 +31,7 @@ def get_asset_timeseries(asset_name):
     months = np.arange(len(dates))
     # base = q0 * np.exp(-d_monthly * months)
     base = q0 / np.power(1 + b * d_monthly * months, 1 / b)
+    print(base)
     noise = np.random.normal(loc=0, scale=base * 0.05, size=len(dates))  # 5% noise
     values = base + noise
     df = pd.DataFrame({"date": dates, "value": values})
@@ -38,7 +39,7 @@ def get_asset_timeseries(asset_name):
     return df
 
 def calculate_forward_economics():
-    x = pd.date_range(max(asset_df['date']), periods=forcast_yrs * 12 + 1, freq='ME').date.tolist()[1:]
+    x = pd.date_range(max(asset_df['date']), periods=int(forcast_yrs * 12 + 1), freq='ME').date.tolist()[1:]
     oil = generate_model_curve(x, hist=False)
     df = pd.DataFrame({"date": x, "oil": oil})
     # df['gas'] = 0.
