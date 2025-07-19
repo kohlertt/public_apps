@@ -11,12 +11,21 @@ ASSETS = ["Well A", "Well B", "Well C", "Well D"]
 
 
 def init_app():
+    if 'in_forecast_yrs' in st.session_state:
+        st.session_state['forecast_yrs'] = st.session_state['in_forecast_yrs']
+        st.session_state.__delitem__('in_forecast_yrs')
+    if 'forecast_yrs' not in st.session_state:
+        st.session_state['forecast_yrs'] = 10.
+    if 'b_slider' in st.session_state:
+        st.session_state['b'] = st.session_state['b_slider']
+        st.session_state.__delitem__('b_slider')
     if 'b' not in st.session_state:
         st.session_state['b'] = 1.
+    if 'd_pct_slider' in st.session_state:
+        st.session_state['d_pct'] = st.session_state['d_pct_slider']
+        st.session_state.__delitem__('d_pct_slider')
     if 'd_pct' not in st.session_state:
         st.session_state['d_pct'] = 15.
-    if 'forecast_yrs' not in st.session_state:
-        st.session_state['forecast_yrs'] = 1.
 
 @st.cache_data
 def get_asset_timeseries(asset_name, forecast_yrs):
@@ -26,7 +35,7 @@ def get_asset_timeseries(asset_name, forecast_yrs):
     The data loosely follows an exponential decline with added noise.
     """
     np.random.seed(hash(asset_name) % 2**32 + 1)  # Seed for reproducibility per asset
-    dates = pd.date_range(datetime.today() - timedelta(days=10*365.25), periods=121 + forecast_yrs * 12, freq='ME')
+    dates = pd.date_range(datetime.today() - timedelta(days=10*365.25), periods=int(121 + forecast_yrs * 12), freq='ME')
     # Randomize exponential decline parameters
     q0 = np.random.uniform(100., 1200.)
     d_annual = np.random.uniform(0.5, 0.35)  # 15% to 35% annual decline
@@ -60,6 +69,39 @@ def calculate_forward_economics():
     df['net_disc_rev'] = df['net_rev'] * df['disc_fact']
     return max(df['net_disc_rev'].cumsum())
 
+def generate_model_curve(x_dates, hist=True):
+    """
+    Generate y-values for a model line based on Arps decline using session state parameters.
+    Uses q0 as the first value in the data, b and d_pct from session state.
+    """
+    if hist:
+        q0 = 1000
+        b = st.session_state.get('b', 1.0)
+        d_pct = st.session_state.get('d_pct', 100)
+        days = (pd.to_datetime(pd.Series(x_dates)) - pd.to_datetime(pd.Series(x_dates)[0])).dt.days
+        d = d_pct / 100  # percent to fraction per year
+        d_daily = d / 365.25
+        if b == 0:
+            y = q0 * np.exp(-d_daily * days)
+        else:
+            if np.abs(b - 1) < 1e-5:
+                b -= 1e-5
+            y = q0 / np.power(1 + b * d_daily * days, 1 / b)
+        y = y / y.iloc[st.session_state.selected_idx] * asset_df['value'][st.session_state.selected_idx]
+        st.session_state['q0'] = q0 / y.iloc[st.session_state.selected_idx] * asset_df['value'][st.session_state.selected_idx]
+        st.session_state['tie_date'] = asset_df['date'][st.session_state.selected_idx]
+    else:
+        q0 = st.session_state.get('q0')
+        b = st.session_state.get('b', 1.0)
+        d_pct = st.session_state.get('d_pct', 100)
+        days = (pd.to_datetime(pd.Series(x_dates)) - pd.to_datetime(st.session_state['tie_date'])).dt.days
+        d = d_pct / 100  # percent to fraction per year
+        d_daily = d / 365.25
+        if b == 0:
+            y = q0 * np.exp(-d_daily * days)
+        else:
+            y = q0 / np.power(1 + b * d_daily * days, 1 / b)
+    return y
 
 st.set_page_config(page_title="Asset Line Chart", layout="wide")
 st.title("Economics Calculator")
@@ -82,7 +124,7 @@ if 'last_asset' not in st.session_state or st.session_state['last_asset'] != sel
 st.markdown('### Parameters')
 col1, col2, col3 = st.columns([1, 1, 1])
 with col1:
-    b = st.slider(
+    st.slider(
         label="b",
         min_value=0.0,
         max_value=2.0,
@@ -91,7 +133,7 @@ with col1:
         key='b_slider'
     )
 with col2:
-    d_pct = st.slider(
+    st.slider(
         label="Di (%/yr)",
         min_value=0.,
         max_value=200.,
@@ -142,14 +184,16 @@ if autofit:
     def loss(params):
         b_fit, d_pct_fit = params
         y = asset_df['value'].values
-        y_pred = arps_curve(asset_df['date'], b_fit, d_pct_fit)
+        y_pred = arps_curve(asset_df['date'], b=b_fit, d_pct=d_pct_fit)
         return np.sum((y - y_pred) ** 2)
-    res = minimize(loss, [b, d_pct], bounds=[(0, 2), (0, 500)])
+    res = minimize(loss, [st.session_state['b'], st.session_state['d_pct']], bounds=[(0, 2), (0, 500)])
     b = res.x[0]
     d_pct = res.x[1]
-    if not (b == st.session_state['b'] and d_pct == st.session_state['d_pct']):
+    if (np.abs(b - st.session_state['b']) > 0.001) or (np.abs(d_pct - st.session_state['d_pct']) > 0.001):
         st.session_state['b'] = b
         st.session_state['d_pct'] = d_pct
+        st.session_state.__delitem__('b_slider')
+        st.session_state.__delitem__('d_pct_slider')
         st.rerun()
 
 
@@ -157,45 +201,6 @@ if autofit:
 if 'selected_idx' not in st.session_state or st.session_state.get('last_asset') != selected_asset:
     st.session_state.selected_idx = 120  # Start at the end (last point)
     st.session_state.last_asset = selected_asset
-
-
-def generate_model_curve(x_dates, hist=True):
-    """
-    Generate y-values for a model line based on Arps decline using session state parameters.
-    Uses q0 as the first value in the data, b and d_pct from session state.
-    """
-    if hist:
-        q0 = 1000
-        b = st.session_state.get('b', 1.0)
-        d_pct = st.session_state.get('d_pct', 100)
-        days = (pd.to_datetime(pd.Series(x_dates)) - pd.to_datetime(pd.Series(x_dates)[0])).dt.days
-        d = d_pct / 100  # percent to fraction per year
-        d_daily = d / 365.25
-        if b == 0:
-            y = q0 * np.exp(-d_daily * days)
-        else:
-            if np.abs(b - 1) < 1e-5:
-                b -= 1e-5
-            y = q0 / np.power(1 + b * d_daily * days, 1 / b)
-        y = y / y.iloc[st.session_state.selected_idx] * asset_df['value'][st.session_state.selected_idx]
-        st.session_state['q0'] = q0 / y.iloc[st.session_state.selected_idx] * asset_df['value'][st.session_state.selected_idx]
-        st.session_state['tie_date'] = asset_df['date'][st.session_state.selected_idx]
-    else:
-        q0 = st.session_state.get('q0')
-        b = st.session_state.get('b', 1.0)
-        d_pct = st.session_state.get('d_pct', 100)
-        days = (pd.to_datetime(pd.Series(x_dates)) - pd.to_datetime(st.session_state['tie_date'])).dt.days
-        d = d_pct / 100  # percent to fraction per year
-        d_daily = d / 365.25
-        if b == 0:
-            y = q0 * np.exp(-d_daily * days)
-        else:
-            y = q0 / np.power(1 + b * d_daily * days, 1 / b)
-    return y
-
-# Store slider values in session state for use in the model function
-st.session_state['b'] = b
-st.session_state['d_pct'] = d_pct
 
 # Generate model curve
 model_y = generate_model_curve(asset_df['date'])
@@ -216,10 +221,8 @@ wi = st.sidebar.number_input('Working Interest (%)', min_value=0.0, max_value=10
 nri = st.sidebar.number_input('Net Rev Interest (%)', min_value=0.0, max_value=100.0, value=80., step=5.)/100
 
 st.sidebar.subheader('Other')
-st.session_state['forecast_yrs'] = st.sidebar.number_input(
-    'Forecast Life (Yr)', min_value=0.0, value=st.session_state['forecast_yrs'], step=1.)
 disc_rate = st.sidebar.number_input(
-    'Discount Rate (%/Yr)', min_value=0.0, max_value=100.0, value=10.0, step=5., format="%.0f")/100
+    'Discount Rate (%/Yr)', min_value=0.0, max_value=100.0, value=10.0, step=5., format="%.1f")/100
 ad_val = st.sidebar.number_input(
     'Ad Valorem (%)', min_value=0.0, max_value=100.0, value=10.0, step=0.5, format="%.1f")/100
 sev_tax = st.sidebar.number_input(
@@ -270,6 +273,9 @@ selected_points = plotly_events(
     override_height=450
 )
 
+st.number_input(
+    'Forecast Life (Yr)', min_value=0.0, value=st.session_state['forecast_yrs'], step=1., key='in_forecast_yrs')
+
 # 3. If the user clicked, update the marker to the nearest data point
 if selected_points:
     click_idx = selected_points[0]['pointIndex']
@@ -277,7 +283,6 @@ if selected_points:
     st.rerun()  # Force rerun to update the marker position
 
 st.markdown(f'#### NPV{int(disc_rate * 100)} (MM$): {round(calculate_forward_economics()/1e6, 3)}')
-
 
 with st.expander('Instructions', expanded=False):
     st.markdown('''
