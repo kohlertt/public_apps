@@ -44,7 +44,12 @@ def get_asset_timeseries(asset_name, forecast_yrs):
     months = np.arange(121)
     # base = q0 * np.exp(-d_monthly * months)
     base = q0 / np.power(1. + b * d_monthly * months, 1. / b)
-    noise = np.random.normal(loc=0., scale=base * 0.05, size=121)  # 5% noise
+    ar_coef = 0.8  # Autoregressive coefficient (0 < ar_coef < 1)
+    noise_std = base * 0.15
+    noise = np.zeros(121)
+    noise[0] = np.random.normal(0, noise_std[0])
+    for i in range(1, 121):
+        noise[i] = ar_coef * noise[i-1] + np.random.normal(0, noise_std[i])
     values = base + noise
     df = pd.DataFrame({"date": dates})
     df["value"] = None
@@ -230,7 +235,13 @@ sev_tax = st.sidebar.number_input(
 
 # 1. Create the Plotly figure with the tie point at the current index
 fig = go.Figure()
-fig.add_trace(go.Scatter(x=asset_df['date'], y=asset_df['value'], mode='lines+markers', name='Oil Rate (BOPD)'))
+fig.add_trace(go.Scatter(
+    x=asset_df['date'],
+    y=asset_df['value'],
+    mode='lines+markers',
+    name='Oil Rate (BOPD)',
+    hovertemplate='<b>Date:</b> %{x}<br><b>Oil Rate:</b> %{y:.2f}<extra></extra>'
+))
 fig.add_trace(go.Scatter(
     x=[asset_df['date'][st.session_state.selected_idx]],
     y=[asset_df['value'][st.session_state.selected_idx]],
