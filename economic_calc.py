@@ -135,7 +135,8 @@ with col1:
         max_value=2.0,
         value=st.session_state['b'],
         step=0.01,
-        key='b_slider'
+        key='b_slider',
+        help="Hyperbolic exponent. Controls the curve shape."
     )
 with col2:
     st.slider(
@@ -144,10 +145,11 @@ with col2:
         max_value=200.,
         value=st.session_state['d_pct'],
         step=0.5,
-        key='d_pct_slider'
+        key='d_pct_slider',
+        help="Nominal decline rate. Controls how steep the curve is."
     )
 with col3:
-    autofit = st.toggle('Autofit Curve', value=False, key='autofit_toggle')
+    autofit = st.toggle('Autofit Curve', value=False, key='autofit_toggle', help="Automatically optimize b and Di parameters, constrained by selected tie-out point.")
 
 # Autofit functionality
 if autofit:
@@ -199,7 +201,7 @@ if autofit:
         st.session_state['d_pct'] = d_pct
         st.session_state.__delitem__('b_slider')
         st.session_state.__delitem__('d_pct_slider')
-        st.rerun()
+        # st.rerun()
 
 
 # Initialize or get the selected point index from session state
@@ -290,7 +292,7 @@ st.number_input(
 # 3. If the user clicked, update the marker to the nearest data point
 if selected_points:
     click_idx = selected_points[0]['pointIndex']
-    st.session_state.selected_idx = click_idx if click_idx <= 120 else 120
+    st.session_state['selected_idx'] = click_idx if click_idx <= 120 else 120
     st.rerun()  # Force rerun to update the marker position
 
 st.markdown(f'#### NPV{int(disc_rate * 100)} (MM$): {round(calculate_forward_economics()/1e6, 3)}')
