@@ -201,7 +201,7 @@ if autofit:
         st.session_state['d_pct'] = d_pct
         st.session_state.__delitem__('b_slider')
         st.session_state.__delitem__('d_pct_slider')
-        # st.rerun()
+        st.rerun()
 
 
 # Initialize or get the selected point index from session state
